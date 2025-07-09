@@ -1,23 +1,23 @@
 import streamlit as st
 from utils import fetch_articles, cluster_themes, analyze_bias
-import matplotlib.pyplot as plt
+from visual import render_bias_plot
 
-st.set_page_config(layout="wide", page_title="🧠 Political Bias Explorer")
+st.set_page_config(layout="wide", page_title="🧠 Political Bias Dashboard")
 
 st.markdown("<h2 style='text-align: center;'>🧠 Political News Bias Dashboard (India)</h2>", unsafe_allow_html=True)
 
-# Sidebar config
-days = st.sidebar.slider("📅 Days to look back", 1, 7, 5)
+days = st.sidebar.radio("📅 Days to look back", [1, 3, 5, 7], index=1)
 
-with st.spinner("🔍 Fetching articles..."):
+with st.spinner("Fetching articles..."):
     df = fetch_articles(days)
     if df.empty:
-        st.warning("No political news found.")
+        st.warning("No articles found.")
         st.stop()
+
     df, model = cluster_themes(df)
     summary, percent, blindspots = analyze_bias(df)
 
-# Topic grid
+# Topics grid
 st.markdown("### 📰 Topics with Bias Distribution")
 topics = df['topic_name'].unique()
 num_cols = 2
@@ -36,9 +36,6 @@ for i in range(0, len(topics), num_cols):
                     st.markdown(f"- [{row['title']}]({row['link']}) — *{row['source']}*")
                 st.markdown("---")
 
-# Bias chart
-st.markdown("### 📊 Overall Bias Percentage by Topic")
-fig, ax = plt.subplots(figsize=(10, 5))
-percent.plot(kind="barh", stacked=True, ax=ax, colormap="coolwarm")
-ax.set_xlabel("Coverage %")
-st.pyplot(fig)
+# Interactive Bias Chart
+st.markdown("### 📊 Interactive Bias Chart per Topic")
+render_bias_plot(df)
