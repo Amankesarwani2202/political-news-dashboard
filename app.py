@@ -1,41 +1,53 @@
 import streamlit as st
-from utils import fetch_articles, cluster_themes, analyze_bias
+import pandas as pd
 from visual import render_bias_plot
 
 st.set_page_config(layout="wide", page_title="🧠 Political Bias Dashboard")
 
-st.markdown("<h2 style='text-align: center;'>🧠 Political News Bias Dashboard (India)</h2>", unsafe_allow_html=True)
+# === Load your processed article data ===
+@st.cache_data
+def load_articles(days=7):
+    df = pd.read_csv("final_articles.csv")  # Your cleaned + labeled article dataset
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df['published'] = pd.to_datetime(df['published'], errors='coerce')
+    df = df[df['timestamp'] >= pd.Timestamp.now() - pd.Timedelta(days=days)]
+    return df
 
-days = st.sidebar.radio("📅 Days to look back", [1, 3, 5, 7], index=1)
+# === UI Sidebar ===
+st.sidebar.header("📅 Days to look back")
+days = st.sidebar.radio("Select:", [1, 3, 7], index=2)
+df = load_articles(days)
 
-with st.spinner("Fetching articles..."):
-    df = fetch_articles(days)
-    if df.empty:
-        st.warning("No articles found.")
-        st.stop()
+if df.empty:
+    st.warning("No articles found for the selected time window.")
+    st.stop()
 
-    df, model = cluster_themes(df)
-    summary, percent, blindspots = analyze_bias(df)
+# === Topic summaries ===
+st.title("🧠 Political News Bias Dashboard (India)")
+topics = df['clean_topic'].unique()
 
-# Topics grid
-st.markdown("### 📰 Topics with Bias Distribution")
-topics = df['topic_name'].unique()
-num_cols = 2
-for i in range(0, len(topics), num_cols):
-    cols = st.columns(num_cols)
-    for j in range(num_cols):
-        if i + j < len(topics):
-            topic = topics[i + j]
-            tdf = df[df['topic_name'] == topic]
-            bdist = tdf['bias'].value_counts(normalize=True).mul(100).round(1).to_dict()
-            total = len(tdf)
-            with cols[j]:
-                st.markdown(f"#### 📌 {topic} ({total} articles)")
-                st.markdown(", ".join([f"{b}: {p}%" for b, p in bdist.items()]))
-                for _, row in tdf.head(5).iterrows():
-                    st.markdown(f"- [{row['title']}]({row['link']}) — *{row['source']}*")
-                st.markdown("---")
+for topic in topics:
+    topic_df = df[df['clean_topic'] == topic]
+    if topic_df.empty: continue
 
-# Interactive Bias Chart
-st.markdown("### 📊 Interactive Bias Chart per Topic")
+    bias_counts = topic_df['bias'].value_counts(normalize=True).mul(100).round(1).to_dict()
+    total_sources = len(topic_df)
+    headline = topic_df.iloc[0]['title']  # First headline from topic
+
+    with st.expander(f"📌 {topic}"):
+        # === Bias bar inline ===
+        st.markdown("**Bias Distribution:** " + ", ".join(f"{b}: {v}%" for b, v in bias_counts.items()))
+        st.markdown(f"**Top Headline:** {headline}")
+        st.markdown(f"**Articles: {total_sources}**")
+
+        for _, row in topic_df.iterrows():
+            st.markdown(
+                f"""
+                - 📰 [{row['title']}]({row['link']})  
+                  <span style="color:gray">({row['source']}, {row['bias']})</span>
+                """, unsafe_allow_html=True)
+
+# === Optional: Global Bias Plot ===
+st.divider()
+st.subheader("📊 Overall Bias Chart")
 render_bias_plot(df)
