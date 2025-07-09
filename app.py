@@ -7,9 +7,8 @@ st.set_page_config(layout="wide", page_title="🧠 Political Bias Explorer")
 st.markdown("<h2 style='text-align: center;'>🧠 Political News Bias Dashboard (India)</h2>", unsafe_allow_html=True)
 
 # Sidebar config
-days = st.sidebar.slider("📅 Days to look back", 1, 7, 3)
+days = st.sidebar.slider("📅 Days to look back", 1, 7, 5)
 
-# Fetch & process
 with st.spinner("🔍 Fetching articles..."):
     df = fetch_articles(days)
     if df.empty:
@@ -18,7 +17,7 @@ with st.spinner("🔍 Fetching articles..."):
     df, model = cluster_themes(df)
     summary, percent, blindspots = analyze_bias(df)
 
-# Topic grid view
+# Topic grid
 st.markdown("### 📰 Topics with Bias Distribution")
 topics = df['topic_name'].unique()
 num_cols = 2
@@ -37,7 +36,7 @@ for i in range(0, len(topics), num_cols):
                     st.markdown(f"- [{row['title']}]({row['link']}) — *{row['source']}*")
                 st.markdown("---")
 
-# Bias summary chart
+# Bias chart
 st.markdown("### 📊 Overall Bias Percentage by Topic")
 fig, ax = plt.subplots(figsize=(10, 5))
 percent.plot(kind="barh", stacked=True, ax=ax, colormap="coolwarm")
