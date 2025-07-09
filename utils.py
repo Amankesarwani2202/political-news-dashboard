@@ -1,13 +1,10 @@
-# utils.py
-
 import pandas as pd
 import feedparser
 from datetime import datetime, timedelta
 from bertopic import BERTopic
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
+from sentence_transformers import SentenceTransformer
 
+# RSS Sources
 RSS_FEEDS = {
     "Hindustan Times": ("https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", "Left-Center"),
     "Times of India": ("https://timesofindia.indiatimes.com/rssfeeds/1221656.cms", "Center"),
@@ -20,6 +17,54 @@ RSS_FEEDS = {
     "Deccan Herald": ("https://www.deccanherald.com/rss-feed/", "Center-Left"),
     "Economic Times": ("https://economictimes.indiatimes.com/rssfeedsdefault.cms", "Center-Right")
 }
+
+def fetch_articles(last_days=3):
+    articles = []
+    cutoff = datetime.now() - timedelta(days=last_days)
+    for source, (url, bias) in RSS_FEEDS.items():
+        feed = feedparser.parse(url)
+        for entry in feed.entries:
+            title = getattr(entry, 'title', '')
+            link = getattr(entry, 'link', '')
+            published = getattr(entry, 'published', None)
+            if not title or not link or not published:
+                continue
+            try:
+                pub_dt = datetime(*entry.published_parsed[:6])
+                if pub_dt < cutoff:
+                    continue
+            except:
+                continue
+            articles.append({
+                'title': title,
+                'link': link,
+                'published': pub_dt,
+                'source': source,
+                'bias': bias
+            })
+    return pd.DataFrame(articles)
+
+def cluster_themes(df):
+    titles = df['title'].tolist()
+    embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+    topic_model = BERTopic(language="english", embedding_model=embedding_model, min_topic_size=4)
+    topics, _ = topic_model.fit_transform(titles)
+    df['topic_id'] = topics
+    df['topic_name'] = df['topic_id'].apply(
+        lambda t: topic_model.get_topic(t)[0][0] if t != -1 else "Other"
+    )
+    return df, topic_model
+
+def analyze_bias(df):
+    summary = df.groupby(['topic_name', 'bias']).size().unstack(fill_value=0)
+    percent = summary.div(summary.sum(axis=1), axis=0) * 100
+    blindspots = []
+    for topic, row in summary.iterrows():
+        total = row.sum()
+        mx = row.max()
+        if (row > 0).sum() == 1 or mx / total > 0.7:
+            blindspots.append({'topic': topic, 'dominant_bias': row.idxmax(), 'percent': round(mx / total * 100, 2)})
+    return summary, percent, blindspots
 
 POLITICAL_KEYWORDS = ['modi','bjp','congress','election','parliament','minister','politic','vote','neet','russia','china']
 
