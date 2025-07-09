@@ -1,0 +1,8 @@
+streamlit
+feedparser
+bertopic
+sentence-transformers
+scikit-learn
+pandas
+matplotlib
+seaborn
