@@ -6,7 +6,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import KMeans
 from sentence_transformers import SentenceTransformer
 
-# News sources with political bias
 RSS_FEEDS = {
     "Hindustan Times": ("https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml", "Left-Center"),
     "Times of India": ("https://timesofindia.indiatimes.com/rssfeeds/1221656.cms", "Center"),
@@ -20,7 +19,6 @@ RSS_FEEDS = {
     "Indian Express": ("https://indianexpress.com/section/india/feed/", "Center")
 }
 
-# Fetch articles from all sources
 def fetch_articles(last_days=3):
     articles = []
     cutoff = datetime.now() - timedelta(days=last_days)
@@ -49,7 +47,6 @@ def fetch_articles(last_days=3):
             })
     return pd.DataFrame(articles)
 
-# Cluster articles by topic
 def cluster_themes(df):
     texts = df['summary'].tolist()
     if len(texts) < 10:
@@ -65,7 +62,6 @@ def cluster_themes(df):
             raise ValueError("Too many -1 topics")
         return df, model
     except:
-        # Fallback: TF-IDF + KMeans
         tfidf = TfidfVectorizer(stop_words="english")
         X = tfidf.fit_transform(texts)
         kmeans = KMeans(n_clusters=5, random_state=42)
@@ -73,7 +69,6 @@ def cluster_themes(df):
         df['topic_name'] = df['topic_id'].apply(lambda x: f"Cluster {x}")
         return df, None
 
-# Bias distribution and blindspot detection
 def analyze_bias(df):
     summary = df.groupby(['topic_name', 'bias']).size().unstack(fill_value=0)
     percent = summary.div(summary.sum(axis=1), axis=0) * 100
